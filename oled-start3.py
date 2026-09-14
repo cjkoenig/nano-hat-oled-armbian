@@ -22,6 +22,7 @@ THE SOFTWARE.
 
 from PIL import Image, ImageDraw, ImageFont
 import gpiod
+from gpiod.line import Direction, Bias
 import os
 import smbus
 import subprocess
@@ -70,15 +71,19 @@ def write_i2c_image_data(i2c_bus, image):
 
 try:
 
-  chip = gpiod.Chip("gpiochip1")
+  chip = gpiod.Chip("/dev/gpiochip1")
 
-  gpio_line0 = chip.get_line(0)
-  gpio_line2 = chip.get_line(2)
-  gpio_line3 = chip.get_line(3)
-
-  gpio_line0.request("p_gpio", gpiod.LINE_REQ_DIR_IN, gpiod.LINE_REQ_FLAG_BIAS_DISABLE)
-  gpio_line2.request("p_gpio", gpiod.LINE_REQ_DIR_IN, gpiod.LINE_REQ_FLAG_BIAS_DISABLE)
-  gpio_line3.request("p_gpio", gpiod.LINE_REQ_DIR_IN, gpiod.LINE_REQ_FLAG_BIAS_DISABLE)
+  input_line_settings = gpiod.LineSettings(
+      direction=Direction.INPUT, bias=Bias.DISABLED
+  )
+  lines = chip.request_lines(
+      consumer="p_gpio",
+      config={
+          0: input_line_settings,
+          2: input_line_settings,
+          3: input_line_settings,
+      },
+  )
 
   i2c0_bus.write_i2c_block_data(
     0x3C,
@@ -117,9 +122,12 @@ try:
   while True:
     time.sleep(0.025)
     current_time = time.time()
-    button_f1 = gpio_line0.get_value()
-    button_f2 = gpio_line2.get_value()
-    button_f3 = gpio_line3.get_value()
+
+    values = lines.get_values([0, 2, 3])
+
+    button_f1 = values[0]
+    button_f2 = values[1]
+    button_f3 = values[2]
 
     if button_f1:
       cmd_index = key1_cmd_index
@@ -233,11 +241,8 @@ except KeyboardInterrupt:
 finally:
 
   i2c0_bus.write_i2c_block_data(0x3C, 0x00, [0xAE])  # set display off
-  
-  gpio_line0.release()
-  gpio_line2.release()
-  gpio_line3.release()
 
+  lines.release()
   chip.close()
 
   if cmd_index == 99:  # shutdown now if the command index was 99
