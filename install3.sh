@@ -23,11 +23,23 @@ cd /tmp
 git clone https://github.com/crouchingtigerhiddenadam/nano-hat-oled-armbian
 cd ./nano-hat-oled-armbian
 
-# Setup rc.local
-if ! grep -Fxq "cd /usr/share/nanohatoled && /usr/bin/nice -n 10 /usr/bin/python3 oled-start3.py &" /etc/rc.local
-then
-  sed -i -e '$i \cd /usr/share/nanohatoled && /usr/bin/nice -n 10 /usr/bin/python3 oled-start3.py &' /etc/rc.local
-fi
+# Setup systemd unit
+tee /etc/systemd/system/nanohatoled.service > /dev/null <<'EOF'
+[Unit]
+Description=NanoHAT OLED Display and Button Control
+After=multi-user.target
+
+[Service]
+Type=simple
+WorkingDirectory=/usr/share/nanohatoled
+ExecStart=/usr/bin/python3 /usr/share/nanohatoled/oled-start3.py
+Restart=on-failure
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
 
 # Make the program directory
 if [ ! -d "/usr/share/nanohatoled" ]
@@ -46,4 +58,4 @@ cd /usr/share/nanohatoled/
 python3 -O -m py_compile oled-start3.py
 
 # Start OLED
-/usr/bin/nice -n 10 /usr/bin/python3 oled-start3.py &
+systemctl enable --now nanohatoled.service
