@@ -12,7 +12,7 @@ apt -y install \
   python3-libgpiod \
   python3-pil \
   python3-smbus \
-  ttf-dejavu
+  fonts-dejavu-mono
 
 # Get the code
 if [ -d "/tmp/nano-hat-oled-armbian" ]

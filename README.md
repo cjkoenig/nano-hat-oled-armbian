@@ -15,7 +15,7 @@ THE SOFTWARE.
 
 ### Prerequisites
 
-This guide assumes you are using Armbian Bookworm. If you know what you're doing, this program can work on other releases too.
+This guide assumes you are using Armbian Bookworm or newer. `oled-start3.py` in this fork targets the libgpiod v2 Python API (`gpiod.Chip.request_lines()` / `LineSettings`), as shipped with `python3-libgpiod` on Debian Trixie / current Armbian images (e.g. tested on a NanoPi NEO2 running kernel 6.18). If your image still ships libgpiod 1.x (older Bookworm builds), use the upstream script instead, which relies on the older `Chip.get_line()` API.
 
 Enable i2c0:
 ```
@@ -45,8 +45,9 @@ sudo apt -y install \
   python3-libgpiod \
   python3-pil \
   python3-smbus \
-  ttf-dejavu
+  fonts-dejavu-mono
 ```
+`ttf-dejavu` was dropped from Debian; `fonts-dejavu-mono` is the current package providing `DejaVuSansMono.ttf` on Trixie.
 
 ### Get the Code
 Clone from GitHub:
@@ -76,30 +77,27 @@ Compile the code:
 ```
 python3 -O -m py_compile oled-start3.py
 ```
-Edit `rc.local`:
+Install and enable the systemd service:
 ```
-sudo nano /etc/rc.local
+sudo tee /etc/systemd/system/nanohatoled.service > /dev/null <<'EOF'
+[Unit]
+Description=NanoHAT OLED Display and Button Control
+After=multi-user.target
+
+[Service]
+Type=simple
+WorkingDirectory=/usr/share/nanohatoled
+ExecStart=/usr/bin/python3 /usr/share/nanohatoled/oled-start3.py
+Restart=on-failure
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl enable --now nanohatoled.service
 ```
-Then find the line:
-```
-exit 0
-```
-And add `cd /usr/share/nanohatoled` and `/usr/bin/nice /usr/bin/python3 -n 10 oled-start3.py &` before `exit 0` so the lines look like this:
-```
-cd /usr/share/nanohatoled && /usr/bin/nice -n 10 /usr/bin/python3 oled-start3.py &
-exit 0
-```
-Save these changes by pressing `ctrl+x`, `ctrl+y` and `enter` as prompted at the bottom of the screen.   
-   
-Compile the code:
-```
-cd /tmp/nano-hat-oled-armbian
-python3 -O -m py_compile oled-start3.py
-```
-Reboot the system for the changes to take effect.
-```
-sudo reboot now
-```
+Note: this fork installs autostart via a systemd unit instead of `/etc/rc.local`, since `rc-local.service` isn't reliably enabled on current Armbian (Debian Trixie). If you're upgrading from a previous install that used the `rc.local` method, remove the `cd /usr/share/nanohatoled && ...` line from `/etc/rc.local` to avoid starting the program twice.
 
 ## Upgrade from Previous Versions
 Get the latest code:
@@ -121,30 +119,16 @@ Copy the lastest version into place:
 sudo mv /tmp/nano-hat-oled-armbian/oled-start3.py /usr/share/nanohatoled/
 sudo mv /tmp/nano-hat-oled-armbian/splash.png /usr/share/nanohatoled/
 ```
-Edit `rc.local`:
-```
-sudo nano /etc/rc.local
-```
-Then find the line:
-```
-exit 0
-```
-If required, change `cd /usr/share/nanohatoled & /usr/bin/nice /usr/bin/python -n 10 oled-start.pyo &` before `exit 0` so the lines look like this:
-```
-cd /usr/share/nanohatoled && /usr/bin/nice -n 10 /usr/bin/python3 oled-start3.py &
-exit 0
-```
-Save these changes by pressing `ctrl+x`, `ctrl+y` and `enter` as prompted at the bottom of the screen.   
-  
 Compile the code:
 ```
 cd /tmp/nano-hat-oled-armbian
 python3 -O -m py_compile oled-start3.py
 ```
-Reboot the system for the changes to take effect.
+Restart the service to pick up the new version:
 ```
-sudo reboot now
+sudo systemctl restart nanohatoled.service
 ```
+(If you're upgrading from an install that predates the systemd unit, follow the systemd setup steps in the Install section above once, then use `systemctl restart` from then on.)
 
 ## Troubleshooting
 
